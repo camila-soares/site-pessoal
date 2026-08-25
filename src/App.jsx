@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import fotoPerfil from "./assets/foto.jpg";
 
 /* ------------------------------------------------------------------
    👉 TROQUE AQUI PELA SUA FOTO
