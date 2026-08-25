@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import fotoPerfil from "./assets/foto.jpg";
+import fotoPerfil from "./assets/IMG_1538.jpeg";
 
 /* ------------------------------------------------------------------
    👉 TROQUE AQUI PELA SUA FOTO
