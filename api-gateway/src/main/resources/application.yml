@@ -1,0 +1,100 @@
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+            allowedHeaders: "*"
+            maxAge: 3600
+
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 20
+            redis-rate-limiter.burstCapacity: 40
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@remoteAddrKeyResolver}"
+
+      routes:
+        # ── Sales Service ──────────────────────────────────────────────
+        - id: sales-clientes
+          uri: ${SALES_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/clientes/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: salesCB
+                fallbackUri: forward:/fallback/sales
+            - AddRequestHeader=X-Gateway-Source, api-gateway
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+                methods: GET
+
+        - id: sales-produtos
+          uri: ${SALES_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/produtos/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: salesCB
+                fallbackUri: forward:/fallback/sales
+            - AddRequestHeader=X-Gateway-Source, api-gateway
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE
+                methods: GET
+
+        - id: sales-pedidos
+          uri: ${SALES_SERVICE_URL:http://localhost:8080}
+          predicates:
+            - Path=/api/v1/pedidos/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: salesCB
+                fallbackUri: forward:/fallback/sales
+            - AddRequestHeader=X-Gateway-Source, api-gateway
+
+  # Redis para rate limiter (dev: desativa exigindo Redis configurado)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: 8888
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      salesCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.camila.gateway: DEBUG

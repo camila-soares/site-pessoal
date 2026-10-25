@@ -1,0 +1,5 @@
+# Perfil dev: desativa rate limiter que depende de Redis
+spring:
+  cloud:
+    gateway:
+      default-filters: []
