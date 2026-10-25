@@ -1,0 +1,109 @@
+services:
+
+  # ── Infraestrutura ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - microservices
+
+  # ── Serviços de negócio ────────────────────────────────────────────────
+  sales-service:
+    build:
+      context: ./sales-service
+    container_name: sales-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - microservices
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      NOTIFICATION_DEV_MODE: "true"
+      # Para envio real de e-mail, defina as variáveis abaixo:
+      # MAIL_HOST: smtp.gmail.com
+      # MAIL_PORT: "587"
+      # MAIL_USER: seu@email.com
+      # MAIL_PASS: sua-senha-app
+      # NOTIFICATION_FROM: noreply@seudominio.com
+      # NOTIFICATION_DEV_MODE: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - microservices
+
+  payment-service:
+    build:
+      context: ./payment-service
+    container_name: payment-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      NOTIFICATION_SERVICE_URL: http://notification-service:8082
+    depends_on:
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - microservices
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      SALES_SERVICE_URL: http://sales-service:8080
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      GATEWAY_API_KEY: dev-secret-key
+    depends_on:
+      redis:
+        condition: service_healthy
+      sales-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8888/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - microservices
+
+networks:
+  microservices:
+    driver: bridge
